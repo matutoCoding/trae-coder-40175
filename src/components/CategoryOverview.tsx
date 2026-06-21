@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PieChart, X } from 'lucide-react'
 import {
   AreaChart,
@@ -25,39 +25,28 @@ function RingChart({ item }: { item: CategoryRepurchase }) {
   return (
     <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={strokeWidth}
-          className="text-surface-200"
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={strokeWidth}
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          className={isWarning ? 'text-warn-500' : 'text-brand-600'}
-        />
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className="text-surface-200" />
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" className={isWarning ? 'text-warn-500' : 'text-brand-600'} />
       </svg>
-      <span className={`absolute font-mono-num font-bold text-lg ${isWarning ? 'text-warn-500' : 'text-brand-600'}`}>
-        {percentage}%
-      </span>
+      <span className={`absolute font-mono-num font-bold text-lg ${isWarning ? 'text-warn-500' : 'text-brand-600'}`}>{percentage}%</span>
     </div>
   )
 }
 
 export default function CategoryOverview() {
-  const { categoryData, setSelectedCategory } = useDashboardStore()
+  const { categoryData, selectedCategory, setSelectedCategory } = useDashboardStore()
   const [modalOpen, setModalOpen] = useState(false)
   const [activeItem, setActiveItem] = useState<CategoryRepurchase | null>(null)
+
+  useEffect(() => {
+    if (selectedCategory && !modalOpen) {
+      const item = categoryData.find((c) => c.category === selectedCategory)
+      if (item) {
+        setActiveItem(item)
+        setModalOpen(true)
+      }
+    }
+  }, [selectedCategory])
 
   const handleCardClick = (item: CategoryRepurchase) => {
     setSelectedCategory(item.category)
@@ -81,11 +70,12 @@ export default function CategoryOverview() {
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {categoryData.map((item) => {
           const isWarning = item.nonRepurchaseRate > 0.35
+          const isHighlighted = selectedCategory === item.category
           return (
             <div
               key={item.category}
               onClick={() => handleCardClick(item)}
-              className="cursor-pointer rounded-xl bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+              className={`cursor-pointer rounded-xl bg-white p-5 shadow-sm transition-all hover:shadow-md ${isHighlighted ? 'ring-2 ring-warn-400 ring-offset-2' : ''}`}
             >
               <div className="font-medium">{item.category}</div>
 
@@ -110,10 +100,7 @@ export default function CategoryOverview() {
                   <span className="font-mono-num">{(item.nonRepurchaseRate * 100).toFixed(1)}%</span>
                 </div>
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-200">
-                  <div
-                    className={`h-full rounded-full ${isWarning ? 'bg-warn-500' : 'bg-brand-500'}`}
-                    style={{ width: `${item.nonRepurchaseRate * 100}%` }}
-                  />
+                  <div className={`h-full rounded-full ${isWarning ? 'bg-warn-500' : 'bg-brand-500'}`} style={{ width: `${item.nonRepurchaseRate * 100}%` }} />
                 </div>
               </div>
             </div>
@@ -123,10 +110,7 @@ export default function CategoryOverview() {
 
       {modalOpen && activeItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={handleClose}>
-          <div
-            className="w-full max-w-2xl rounded-xl bg-white p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="w-full max-w-2xl rounded-xl bg-white p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">{activeItem.category} - 续购趋势</h3>
               <button onClick={handleClose} className="text-surface-400 hover:text-surface-600">

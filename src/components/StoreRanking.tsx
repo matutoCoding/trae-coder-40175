@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react'
 import { Store, ChevronDown, ChevronUp, CheckCircle2, XCircle, Package, Phone, UserCheck, Truck } from 'lucide-react'
 import { useDashboardStore } from '@/hooks/useDashboardStore'
-import type { FollowUpAction } from '@/lib/mockData'
+import type { FollowUpAction, ActionStatus } from '@/lib/mockData'
 
 const actionOptions: { value: FollowUpAction; label: string; icon: typeof Phone }[] = [
   { value: '再次电话', label: '再次电话', icon: Phone },
@@ -28,6 +28,12 @@ function ProgressBar({ value, thresholds }: { value: number; thresholds: { good:
   )
 }
 
+function StatusDot({ status }: { status: ActionStatus }) {
+  if (status === '待处理') return <span className="inline-block h-2 w-2 rounded-full bg-yellow-500" />
+  if (status === '处理中') return <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
+  return <CheckCircle2 className="h-3 w-3 text-green-600" />
+}
+
 function ActionButton({ storeName, itemType, itemName, onActioned }: {
   storeName: string
   itemType: 'unreachable' | 'reminder' | 'outOfStock'
@@ -35,17 +41,55 @@ function ActionButton({ storeName, itemType, itemName, onActioned }: {
   onActioned: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const { actionRecords, addActionRecord } = useDashboardStore()
+  const [statusOpen, setStatusOpen] = useState(false)
+  const { actionRecords, addActionRecord, updateActionStatus } = useDashboardStore()
   const existingAction = actionRecords.find(
     (r) => r.storeName === storeName && r.itemType === itemType && r.itemName === itemName
   )
 
   if (existingAction) {
+    const { status } = existingAction
+    const nextStatus: ActionStatus | null = status === '待处理' ? '处理中' : status === '处理中' ? '已完成' : null
+
+    const statusLabel = status === '待处理' ? '' : status === '处理中' ? '处理中' : '已完成'
+    const bgClass = status === '待处理'
+      ? 'bg-yellow-50 text-yellow-800'
+      : status === '处理中'
+        ? 'bg-blue-50 text-blue-800'
+        : 'bg-green-50 text-green-800'
+
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
-        <CheckCircle2 className="h-3 w-3" />
-        {existingAction.action}
-      </span>
+      <div className="relative inline-block">
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            if (nextStatus) setStatusOpen(!statusOpen)
+          }}
+          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${bgClass}`}
+        >
+          <StatusDot status={status} />
+          {existingAction.action}
+          {statusLabel && <span className="ml-0.5 opacity-75">{statusLabel}</span>}
+        </button>
+        {statusOpen && nextStatus && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setStatusOpen(false) }} />
+            <div className="absolute left-0 top-full z-50 mt-1 rounded-lg bg-white py-1 shadow-lg" onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={() => {
+                  updateActionStatus(existingAction.id, nextStatus)
+                  setStatusOpen(false)
+                  onActioned()
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-surface-50"
+              >
+                <StatusDot status={nextStatus} />
+                标记为{nextStatus}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     )
   }
 
@@ -82,13 +126,50 @@ function ActionButton({ storeName, itemType, itemName, onActioned }: {
   )
 }
 
+function ItemStatusTag({ storeName, itemType, itemName }: {
+  storeName: string
+  itemType: 'unreachable' | 'reminder' | 'outOfStock'
+  itemName: string
+}) {
+  const { actionRecords } = useDashboardStore()
+  const record = actionRecords.find(
+    (r) => r.storeName === storeName && r.itemType === itemType && r.itemName === itemName
+  )
+  if (!record) return null
+
+  if (record.status === '处理中') {
+    return <span className="ml-1.5 inline-flex items-center rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">处理中</span>
+  }
+  if (record.status === '已完成') {
+    return <span className="ml-1.5 inline-flex items-center rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">已完成</span>
+  }
+  return null
+}
+
 function DetailPanel() {
-  const { storeData, expandedStore } = useDashboardStore()
+  const { storeData, expandedStore, actionRecords, storeActionFilter, setStoreActionFilter } = useDashboardStore()
   const [, forceUpdate] = useState(0)
   const store = storeData.find((s) => s.rank === expandedStore)
   if (!store) return null
 
   const { reminders, unreachableMembers, outOfStockDrugs } = store.details
+
+  const storeRecords = actionRecords.filter((r) => r.storeName === store.storeName)
+  const filteredRecords = storeActionFilter === '全部'
+    ? storeRecords
+    : storeRecords.filter((r) => r.status === storeActionFilter)
+
+  const countByStatus = (status: ActionStatus | '全部') => {
+    if (status === '全部') return storeRecords.length
+    return storeRecords.filter((r) => r.status === status).length
+  }
+
+  const filterOptions: { value: ActionStatus | '全部'; label: string }[] = [
+    { value: '全部', label: '全部' },
+    { value: '待处理', label: '待处理' },
+    { value: '处理中', label: '处理中' },
+    { value: '已完成', label: '已完成' },
+  ]
 
   return (
     <tr>
@@ -108,6 +189,7 @@ function DetailPanel() {
                     <div className="text-surface-800">
                       {r.memberName}
                       <span className="ml-2 text-surface-400">{r.dueDate}</span>
+                      <ItemStatusTag storeName={store.storeName} itemType="reminder" itemName={r.memberName} />
                     </div>
                     {r.completed && r.completedDate && (
                       <div className="text-xs text-surface-400">已完成于 {r.completedDate}</div>
@@ -132,6 +214,7 @@ function DetailPanel() {
                     <div className="text-surface-800">
                       {m.memberName}
                       <span className="ml-2 text-surface-400">{m.phone}</span>
+                      <ItemStatusTag storeName={store.storeName} itemType="unreachable" itemName={m.memberName} />
                     </div>
                     <div className="mt-0.5 flex items-center gap-2 text-xs text-surface-400">
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${m.attempts >= 3 ? 'bg-warn-500/10 text-warn-500' : 'bg-surface-200 text-surface-600'}`}>
@@ -155,7 +238,10 @@ function DetailPanel() {
                 <li key={i} className="flex items-start gap-2 text-sm">
                   <Package className="mt-0.5 h-4 w-4 shrink-0 text-surface-400" />
                   <div className="flex-1">
-                    <div className="text-surface-800">{d.drugName}</div>
+                    <div className="text-surface-800">
+                      {d.drugName}
+                      <ItemStatusTag storeName={store.storeName} itemType="outOfStock" itemName={d.drugName} />
+                    </div>
                     <div className="mt-0.5 text-xs text-surface-400">
                       影响 {d.affectedMembers} 人
                       <span className="ml-2">
@@ -172,41 +258,59 @@ function DetailPanel() {
           </div>
         </div>
 
-        <ActionHistory storeName={store.storeName} />
+        {storeRecords.length > 0 && (
+          <div className="mt-4 border-t border-surface-200 pt-3">
+            <div className="mb-2 flex items-center justify-between">
+              <h4 className="text-sm font-medium text-surface-700">已标记的跟进动作</h4>
+              <div className="flex gap-1">
+                {filterOptions.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => setStoreActionFilter(value)}
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                      storeActionFilter === value
+                        ? 'bg-brand-500 text-white'
+                        : 'bg-surface-200 text-surface-600 hover:bg-surface-300'
+                    }`}
+                  >
+                    {label}({countByStatus(value)})
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {filteredRecords.map((r) => {
+                const typeLabel = r.itemType === 'unreachable' ? '未接通' : r.itemType === 'reminder' ? '未完成提醒' : '缺货'
+                const statusBg = r.status === '待处理'
+                  ? 'bg-yellow-50 border-yellow-200'
+                  : r.status === '处理中'
+                    ? 'bg-blue-50 border-blue-200'
+                    : 'bg-green-50 border-green-200'
+                return (
+                  <span key={r.id} className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs shadow-sm ${statusBg}`}>
+                    <StatusDot status={r.status} />
+                    <span className="font-medium text-surface-700">{r.itemName}</span>
+                    <span className="text-surface-400">·</span>
+                    <span className="text-surface-500">{typeLabel}</span>
+                    <span className="text-surface-400">→</span>
+                    <span className="font-medium text-surface-700">{r.action}</span>
+                    <span className="text-surface-300">{r.timestamp}</span>
+                  </span>
+                )
+              })}
+              {filteredRecords.length === 0 && (
+                <span className="text-xs text-surface-400">当前筛选无记录</span>
+              )}
+            </div>
+          </div>
+        )}
       </td>
     </tr>
   )
 }
 
-function ActionHistory({ storeName }: { storeName: string }) {
-  const { actionRecords } = useDashboardStore()
-  const records = actionRecords.filter((r) => r.storeName === storeName)
-  if (records.length === 0) return null
-
-  return (
-    <div className="mt-4 border-t border-surface-200 pt-3">
-      <h4 className="mb-2 text-sm font-medium text-surface-700">已标记的跟进动作</h4>
-      <div className="flex flex-wrap gap-2">
-        {records.map((r) => {
-          const typeLabel = r.itemType === 'unreachable' ? '未接通' : r.itemType === 'reminder' ? '未完成提醒' : '缺货'
-          return (
-            <span key={r.id} className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs shadow-sm">
-              <span className="font-medium text-surface-700">{r.itemName}</span>
-              <span className="text-surface-400">·</span>
-              <span className="text-surface-500">{typeLabel}</span>
-              <span className="text-surface-400">→</span>
-              <span className="font-medium text-brand-700">{r.action}</span>
-              <span className="text-surface-300">{r.timestamp}</span>
-            </span>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 export default function StoreRanking() {
-  const { storeData, expandedStore, setExpandedStore } = useDashboardStore()
+  const { storeData, expandedStore, setExpandedStore, highlightedStoreRank } = useDashboardStore()
 
   const toggleExpand = (rank: number) => {
     setExpandedStore(expandedStore === rank ? null : rank)
@@ -234,10 +338,11 @@ export default function StoreRanking() {
           <tbody>
             {storeData.map((store) => {
               const isExpanded = expandedStore === store.rank
+              const isHighlighted = highlightedStoreRank === store.rank
               return (
                 <Fragment key={store.rank}>
                   <tr
-                    className="cursor-pointer border-t border-surface-100 transition-colors hover:bg-surface-50"
+                    className={`cursor-pointer border-t border-surface-100 transition-colors hover:bg-surface-50 ${isHighlighted ? 'bg-brand-100' : ''}`}
                     onClick={() => toggleExpand(store.rank)}
                   >
                     <td className="px-4 py-3"><RankBadge rank={store.rank} /></td>

@@ -1,10 +1,13 @@
-import { Zap } from 'lucide-react'
+import { Zap, ArrowRight } from 'lucide-react'
 import { useDashboardStore } from '@/hooks/useDashboardStore'
 
 export default function OperationsSummary() {
   const categoryData = useDashboardStore((s) => s.categoryData)
   const storeData = useDashboardStore((s) => s.storeData)
   const churnData = useDashboardStore((s) => s.churnData)
+  const navigateToCategory = useDashboardStore((s) => s.navigateToCategory)
+  const navigateToStore = useDashboardStore((s) => s.navigateToStore)
+  const navigateToChurn = useDashboardStore((s) => s.navigateToChurn)
 
   const maxNonRepurchaseCategory = categoryData.reduce<{ category: string; gap: number } | null>(
     (acc, item) => {
@@ -15,10 +18,10 @@ export default function OperationsSummary() {
     null,
   )
 
-  const lowestRateStore = storeData.reduce<{ storeName: string; rate: number } | null>(
+  const lowestRateStore = storeData.reduce<{ storeName: string; rate: number; rank: number } | null>(
     (acc, item) => {
       if (!acc || item.reminderCompletionRate < acc.rate) {
-        return { storeName: item.storeName, rate: item.reminderCompletionRate }
+        return { storeName: item.storeName, rate: item.reminderCompletionRate, rank: item.rank }
       }
       return acc
     },
@@ -49,35 +52,63 @@ export default function OperationsSummary() {
       <p className="text-sm text-surface-400 mb-4">当前筛选条件下的关键指标汇总</p>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-l-warn-500">
+        <button
+          onClick={() => {
+            if (maxNonRepurchaseCategory) navigateToCategory(maxNonRepurchaseCategory.category)
+          }}
+          className="group w-full cursor-pointer rounded-xl border-l-4 border-l-warn-500 bg-white p-4 text-left shadow-sm transition-shadow hover:shadow-md"
+        >
           <p className="text-sm text-surface-500">未回购人数最多品类</p>
-          <p className="text-xl font-bold text-warn-600 mt-1">
+          <p className="mt-1 text-xl font-bold text-warn-600">
             {maxNonRepurchaseCategory?.category ?? '-'}
           </p>
-          <p className="text-sm font-mono-num text-warn-500 mt-1">
-            {maxNonRepurchaseCategory ? `${maxNonRepurchaseCategory.gap}人未回购` : '-'}
-          </p>
-        </div>
+          <div className="mt-1 flex items-center justify-between">
+            <p className="font-mono-num text-sm text-warn-500">
+              {maxNonRepurchaseCategory ? `${maxNonRepurchaseCategory.gap}人未回购` : '-'}
+            </p>
+            <span className="flex items-center gap-0.5 text-xs text-surface-400 opacity-0 transition-opacity group-hover:opacity-100">
+              查看详情 <ArrowRight className="h-3 w-3" />
+            </span>
+          </div>
+        </button>
 
-        <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-l-red-500">
+        <button
+          onClick={() => {
+            if (lowestRateStore) navigateToStore(lowestRateStore.rank)
+          }}
+          className="group w-full cursor-pointer rounded-xl border-l-4 border-l-red-500 bg-white p-4 text-left shadow-sm transition-shadow hover:shadow-md"
+        >
           <p className="text-sm text-surface-500">提醒完成率最低门店</p>
-          <p className="text-xl font-bold text-red-600 mt-1 truncate">
+          <p className="mt-1 truncate text-xl font-bold text-red-600">
             {lowestRateStore?.storeName ?? '-'}
           </p>
-          <p className="text-sm font-mono-num text-red-500 mt-1">
-            {lowestRateStore ? `完成率 ${Math.round(lowestRateStore.rate * 100)}%` : '-'}
-          </p>
-        </div>
+          <div className="mt-1 flex items-center justify-between">
+            <p className="font-mono-num text-sm text-red-500">
+              {lowestRateStore ? `完成率 ${Math.round(lowestRateStore.rate * 100)}%` : '-'}
+            </p>
+            <span className="flex items-center gap-0.5 text-xs text-surface-400 opacity-0 transition-opacity group-hover:opacity-100">
+              展开详情 <ArrowRight className="h-3 w-3" />
+            </span>
+          </div>
+        </button>
 
-        <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-l-purple-500">
+        <button
+          onClick={() => navigateToChurn()}
+          className="group w-full cursor-pointer rounded-xl border-l-4 border-l-purple-500 bg-white p-4 text-left shadow-sm transition-shadow hover:shadow-md"
+        >
           <p className="text-sm text-surface-500">最高风险标签</p>
-          <p className="text-xl font-bold text-purple-600 mt-1">
+          <p className="mt-1 text-xl font-bold text-purple-600">
             {topRiskLabel?.label ?? '-'}
           </p>
-          <p className="text-sm font-mono-num text-purple-500 mt-1">
-            {topRiskLabel ? `${topRiskLabel.count}位会员` : '-'}
-          </p>
-        </div>
+          <div className="mt-1 flex items-center justify-between">
+            <p className="font-mono-num text-sm text-purple-500">
+              {topRiskLabel ? `${topRiskLabel.count}位会员` : '-'}
+            </p>
+            <span className="flex items-center gap-0.5 text-xs text-surface-400 opacity-0 transition-opacity group-hover:opacity-100">
+              查看会员 <ArrowRight className="h-3 w-3" />
+            </span>
+          </div>
+        </button>
       </div>
     </div>
   )

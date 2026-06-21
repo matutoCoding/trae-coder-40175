@@ -36,13 +36,28 @@ export interface ChurnMember {
   suggestedAction: string
 }
 
+export type ActionStatus = '待处理' | '处理中' | '已完成'
+
 export interface ActionRecord {
   id: string
   storeName: string
   itemType: 'unreachable' | 'reminder' | 'outOfStock'
   itemName: string
   action: FollowUpAction
+  status: ActionStatus
   timestamp: string
+}
+
+export type CareActivityStatus = '草稿' | '已发起' | '已完成'
+
+export interface CareActivity {
+  id: string
+  memberIds: string[]
+  categories: string[]
+  riskLabelCounts: Record<string, number>
+  scriptSummary: string
+  status: CareActivityStatus
+  createdAt: string
 }
 
 const regions = ['华东', '华南', '华北', '华中', '西南'] as const
