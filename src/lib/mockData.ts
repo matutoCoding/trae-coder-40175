@@ -41,18 +41,34 @@ export type ActionStatus = '待处理' | '处理中' | '已完成'
 export interface ActionRecord {
   id: string
   storeName: string
-  itemType: 'unreachable' | 'reminder' | 'outOfStock'
+  itemType: 'unreachable' | 'reminder' | 'outOfStock' | 'activityTransfer'
   itemName: string
   action: FollowUpAction
   status: ActionStatus
   timestamp: string
+  sourceActivityId?: string
+  memberId?: string
 }
 
 export type CareActivityStatus = '草稿' | '已发起' | '已完成'
 
+export type ActivityMemberStatus = '待触达' | '已触达-待回访' | '已转门店' | '已回购'
+
+export interface ChurnMemberSnapshot {
+  memberId: string
+  memberName: string
+  phone: string
+  category: string
+  region: string
+  riskLabels: RiskLabel[]
+  lastPurchaseDate: string
+}
+
 export interface CareActivity {
   id: string
   memberIds: string[]
+  memberSnapshots: Record<string, ChurnMemberSnapshot>
+  memberStatuses: Record<string, ActivityMemberStatus>
   categories: string[]
   riskLabelCounts: Record<string, number>
   scriptSummary: string
@@ -511,4 +527,14 @@ export function getFilteredData(timeRange: string, region: string) {
     storeRankingData: filteredStores,
     churnMembersData: filteredChurn,
   }
+}
+
+export function getDefaultStoreForRegion(region: string): string {
+  const storesInRegion = storeRankingData.filter((s) => s.region === region)
+  if (storesInRegion.length > 0) return storesInRegion[0].storeName
+  return storeRankingData[0]?.storeName ?? ''
+}
+
+export function getStoreByName(storeName: string): StoreRanking | undefined {
+  return storeRankingData.find((s) => s.storeName === storeName)
 }

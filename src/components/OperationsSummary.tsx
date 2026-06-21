@@ -7,7 +7,7 @@ export default function OperationsSummary() {
   const churnData = useDashboardStore((s) => s.churnData)
   const navigateToCategory = useDashboardStore((s) => s.navigateToCategory)
   const navigateToStore = useDashboardStore((s) => s.navigateToStore)
-  const navigateToChurn = useDashboardStore((s) => s.navigateToChurn)
+  const navigateToChurnWithLabel = useDashboardStore((s) => s.navigateToChurnWithLabel)
 
   const maxNonRepurchaseCategory = categoryData.reduce<{ category: string; gap: number } | null>(
     (acc, item) => {
@@ -93,7 +93,9 @@ export default function OperationsSummary() {
         </button>
 
         <button
-          onClick={() => navigateToChurn()}
+          onClick={() => {
+            if (topRiskLabel) navigateToChurnWithLabel(topRiskLabel.label as any)
+          }}
           className="group w-full cursor-pointer rounded-xl border-l-4 border-l-purple-500 bg-white p-4 text-left shadow-sm transition-shadow hover:shadow-md"
         >
           <p className="text-sm text-surface-500">最高风险标签</p>

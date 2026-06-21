@@ -1,6 +1,7 @@
-import { AlertTriangle, ArrowRight, CheckSquare, Square, Send, X, Users, FileText } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckSquare, Square, Send, X, Users, FileText, MessageCircle, UserCheck, CheckCircle2, ChevronDown } from 'lucide-react'
 import { useDashboardStore } from '@/hooks/useDashboardStore'
-import type { RiskLabel, CareActivityStatus } from '@/lib/mockData'
+import type { RiskLabel, CareActivityStatus, ActivityMemberStatus, ChurnMemberSnapshot } from '@/lib/mockData'
+import { useState, useRef, useEffect } from 'react'
 
 const riskLabelOptions: (RiskLabel | '全部')[] = ['全部', '连续三次未回购', '处方可能过期', '只在线下买过无法触达']
 
@@ -15,6 +16,15 @@ const statusBadgeStyles: Record<CareActivityStatus, string> = {
   '已发起': 'bg-brand-100 text-brand-700',
   '已完成': 'bg-green-100 text-green-700',
 }
+
+const activityMemberStatusStyles: Record<ActivityMemberStatus, string> = {
+  '待触达': 'bg-surface-200 text-surface-700',
+  '已触达-待回访': 'bg-brand-200 text-brand-700',
+  '已转门店': 'bg-warn-200 text-warn-700',
+  '已回购': 'bg-green-200 text-green-700',
+}
+
+const allActivityStatuses: ActivityMemberStatus[] = ['待触达', '已触达-待回访', '已转门店', '已回购']
 
 function getActionStyle(action: string) {
   if (action.includes('补货')) return 'bg-brand-50 text-brand-700 border border-brand-200'
@@ -108,18 +118,79 @@ function CareDraftModal() {
   )
 }
 
+function StatusDropdown({ activityId, memberId, currentStatus }: { activityId: string; memberId: string; currentStatus: ActivityMemberStatus }) {
+  const [open, setOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const { updateActivityMemberStatus } = useDashboardStore()
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleSelect = (status: ActivityMemberStatus) => {
+    updateActivityMemberStatus(activityId, memberId, status)
+    setOpen(false)
+  }
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1 rounded border border-surface-200 bg-white px-2 py-1 text-xs text-surface-600 hover:bg-surface-50"
+      >
+        <span>变更状态</span>
+        <ChevronDown className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-10 mt-1 w-36 rounded-lg border border-surface-200 bg-white py-1 shadow-lg">
+          {allActivityStatuses.map((status) => (
+            <button
+              key={status}
+              onClick={() => handleSelect(status)}
+              className={`w-full px-3 py-1.5 text-left text-xs hover:bg-surface-50 ${status === currentStatus ? 'bg-brand-50 text-brand-700' : 'text-surface-700'}`}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function CareActivityDetailModal() {
-  const { viewCareActivityId, careActivities, churnData, setViewCareActivityId } = useDashboardStore()
+  const { viewCareActivityId, careActivities, setViewCareActivityId } = useDashboardStore()
   if (!viewCareActivityId) return null
 
   const activity = careActivities.find((a) => a.id === viewCareActivityId)
   if (!activity) return null
 
-  const members = churnData.filter((m) => activity.memberIds.includes(m.memberId))
+  const countByStatus: Record<ActivityMemberStatus, number> = {
+    '待触达': 0,
+    '已触达-待回访': 0,
+    '已转门店': 0,
+    '已回购': 0,
+  }
+  Object.values(activity.memberStatuses).forEach((s) => {
+    if (s in countByStatus) countByStatus[s as ActivityMemberStatus]++
+  })
+
+  const members: { snapshot: ChurnMemberSnapshot; status: ActivityMemberStatus }[] = activity.memberIds
+    .filter((id) => activity.memberSnapshots[id])
+    .map((id) => ({
+      snapshot: activity.memberSnapshots[id],
+      status: activity.memberStatuses[id] || '待触达',
+    }))
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setViewCareActivityId(null)}>
-      <div className="w-full max-w-lg rounded-xl bg-white p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="flex items-center gap-2 text-lg font-semibold">
             <FileText className="h-5 w-5 text-brand-600" />
@@ -130,13 +201,47 @@ function CareActivityDetailModal() {
           </button>
         </div>
 
-        <div className="mt-4 space-y-4">
+        <div className="mt-4 space-y-5">
           <div className="flex items-center gap-3 text-sm text-surface-500">
             <span className="font-mono text-xs">{activity.id.slice(0, 12)}…</span>
             <span>{activity.createdAt}</span>
             <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusBadgeStyles[activity.status]}`}>
               {activity.status}
             </span>
+          </div>
+
+          <div>
+            <div className="mb-2 text-sm font-medium text-surface-700">活动追踪指标</div>
+            <div className="grid grid-cols-4 gap-3">
+              <div className="rounded-lg bg-surface-50 p-3">
+                <div className="flex items-center gap-2 text-surface-600">
+                  <Users className="h-4 w-4" />
+                  <span className="text-xs font-medium">待触达</span>
+                </div>
+                <div className="mt-1.5 text-2xl font-semibold text-surface-800">{countByStatus['待触达']}</div>
+              </div>
+              <div className="rounded-lg bg-brand-50 p-3">
+                <div className="flex items-center gap-2 text-brand-700">
+                  <MessageCircle className="h-4 w-4" />
+                  <span className="text-xs font-medium">已触达-待回访</span>
+                </div>
+                <div className="mt-1.5 text-2xl font-semibold text-brand-700">{countByStatus['已触达-待回访']}</div>
+              </div>
+              <div className="rounded-lg bg-warn-50 p-3">
+                <div className="flex items-center gap-2 text-warn-700">
+                  <UserCheck className="h-4 w-4" />
+                  <span className="text-xs font-medium">已转门店</span>
+                </div>
+                <div className="mt-1.5 text-2xl font-semibold text-warn-700">{countByStatus['已转门店']}</div>
+              </div>
+              <div className="rounded-lg bg-green-50 p-3">
+                <div className="flex items-center gap-2 text-green-700">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span className="text-xs font-medium">已回购</span>
+                </div>
+                <div className="mt-1.5 text-2xl font-semibold text-green-700">{countByStatus['已回购']}</div>
+              </div>
+            </div>
           </div>
 
           <div>
@@ -167,15 +272,46 @@ function CareActivityDetailModal() {
           </div>
 
           <div>
-            <div className="mb-1 text-sm font-medium text-surface-700">会员列表 ({activity.memberIds.length}人)</div>
-            <div className="max-h-40 overflow-y-auto rounded-lg bg-surface-50 p-2">
-              {members.map((m) => (
-                <div key={m.memberId} className="flex items-center gap-2 py-0.5 text-xs">
-                  <span className="font-medium text-surface-700">{m.memberName}</span>
-                  <span className="text-surface-400">{m.phone}</span>
-                  <span className="text-surface-400">· {m.category}</span>
-                </div>
-              ))}
+            <div className="mb-2 text-sm font-medium text-surface-700">会员列表 ({activity.memberIds.length}人)</div>
+            <div className="max-h-64 overflow-y-auto rounded-lg border border-surface-200">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-surface-50 text-xs text-surface-600">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium">会员信息</th>
+                    <th className="px-3 py-2 text-left font-medium">品类</th>
+                    <th className="px-3 py-2 text-left font-medium">当前状态</th>
+                    <th className="px-3 py-2 text-right font-medium">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-100">
+                  {members.map(({ snapshot, status }) => (
+                    <tr key={snapshot.memberId} className="hover:bg-surface-50">
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-medium text-brand-700">
+                            {snapshot.memberName.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-medium text-surface-800">{snapshot.memberName}</div>
+                            <div className="font-mono-num text-xs text-surface-400">{snapshot.phone}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className="rounded bg-surface-100 px-1.5 py-0.5 text-xs text-surface-600">{snapshot.category}</span>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={`rounded px-2 py-0.5 text-xs font-medium ${activityMemberStatusStyles[status]}`}>
+                          {status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <StatusDropdown activityId={activity.id} memberId={snapshot.memberId} currentStatus={status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -198,6 +334,7 @@ export default function ChurnWarning() {
     churnData, churnLabelFilter, setChurnLabelFilter,
     selectedChurnMembers, toggleChurnMember, toggleAllChurnMembers,
     openCareDraft, careActivities, updateCareActivityStatus, setViewCareActivityId,
+    highlightedMemberIds,
   } = useDashboardStore()
 
   const filtered = churnLabelFilter === '全部'
@@ -258,10 +395,11 @@ export default function ChurnWarning() {
       <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {filtered.map((member) => {
           const isSelected = selectedChurnMembers.has(member.memberId)
+          const isHighlighted = highlightedMemberIds.has(member.memberId)
           return (
             <div
               key={member.memberId}
-              className={`rounded-xl bg-white p-4 shadow-sm transition-all ${isSelected ? 'ring-2 ring-brand-500 ring-offset-1' : 'hover:shadow-md'}`}
+              className={`rounded-xl bg-white p-4 shadow-sm transition-all ${isSelected ? 'ring-2 ring-brand-500 ring-offset-1' : isHighlighted ? 'ring-2 ring-purple-500 ring-offset-1' : 'hover:shadow-md'}`}
             >
               <div className="flex items-start gap-3">
                 <button
@@ -279,6 +417,9 @@ export default function ChurnWarning() {
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-surface-800">{member.memberName}</span>
                     <span className="rounded bg-surface-100 px-1.5 py-0.5 text-xs text-surface-600">{member.category}</span>
+                    {isHighlighted && (
+                      <span className="bg-purple-500 text-white text-[10px] px-1 py-0.5 rounded">TOP 风险</span>
+                    )}
                   </div>
                   <div className="mt-1 font-mono-num text-sm text-surface-400">{member.phone}</div>
                   <div className="mt-1 text-xs text-surface-400">上次购买: {member.lastPurchaseDate}</div>

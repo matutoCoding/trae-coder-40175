@@ -36,7 +36,7 @@ function StatusDot({ status }: { status: ActionStatus }) {
 
 function ActionButton({ storeName, itemType, itemName, onActioned }: {
   storeName: string
-  itemType: 'unreachable' | 'reminder' | 'outOfStock'
+  itemType: 'unreachable' | 'reminder' | 'outOfStock' | 'activityTransfer'
   itemName: string
   onActioned: () => void
 }) {
@@ -128,7 +128,7 @@ function ActionButton({ storeName, itemType, itemName, onActioned }: {
 
 function ItemStatusTag({ storeName, itemType, itemName }: {
   storeName: string
-  itemType: 'unreachable' | 'reminder' | 'outOfStock'
+  itemType: 'unreachable' | 'reminder' | 'outOfStock' | 'activityTransfer'
   itemName: string
 }) {
   const { actionRecords } = useDashboardStore()
@@ -147,7 +147,7 @@ function ItemStatusTag({ storeName, itemType, itemName }: {
 }
 
 function DetailPanel() {
-  const { storeData, expandedStore, actionRecords, storeActionFilter, setStoreActionFilter } = useDashboardStore()
+  const { storeData, expandedStore, actionRecords, careActivities, storeActionFilter, setStoreActionFilter } = useDashboardStore()
   const [, forceUpdate] = useState(0)
   const store = storeData.find((s) => s.rank === expandedStore)
   if (!store) return null
@@ -158,6 +158,8 @@ function DetailPanel() {
   const filteredRecords = storeActionFilter === '全部'
     ? storeRecords
     : storeRecords.filter((r) => r.status === storeActionFilter)
+
+  const activityTransferRecords = storeRecords.filter((r) => r.itemType === 'activityTransfer')
 
   const countByStatus = (status: ActionStatus | '全部') => {
     if (status === '全部') return storeRecords.length
@@ -174,7 +176,7 @@ function DetailPanel() {
   return (
     <tr>
       <td colSpan={6} className="border-t border-surface-200 bg-surface-50 p-4">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <div>
             <h4 className="mb-2 font-medium text-surface-700">提醒完成情况</h4>
             <ul className="space-y-2">
@@ -256,6 +258,41 @@ function DetailPanel() {
               ))}
             </ul>
           </div>
+
+          <div>
+            <h4 className="mb-2 font-medium text-surface-700">活动转来待办</h4>
+            <ul className="space-y-2">
+              {activityTransferRecords.length === 0 && (
+                <li className="text-sm text-surface-400">暂无活动转来待办</li>
+              )}
+              {activityTransferRecords.map((r, i) => {
+                const activity = r.sourceActivityId ? careActivities.find((a) => a.id === r.sourceActivityId) : undefined
+                const memberCategory = (activity && r.memberId) ? activity.memberSnapshots[r.memberId]?.category : undefined
+                return (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <div className="flex-1">
+                      <div className="text-surface-800">
+                        {r.itemName}
+                        {r.sourceActivityId && (
+                          <span className="ml-1.5 inline-flex items-center rounded bg-surface-200 px-1.5 py-0.5 text-[10px] font-medium text-surface-500">
+                            {r.sourceActivityId}
+                          </span>
+                        )}
+                        {memberCategory && (
+                          <span className="ml-1.5 inline-flex items-center rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-medium text-brand-700">
+                            {memberCategory}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1">
+                        <ActionButton storeName={store.storeName} itemType="activityTransfer" itemName={r.itemName} onActioned={() => forceUpdate((n) => n + 1)} />
+                      </div>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
         </div>
 
         {storeRecords.length > 0 && (
@@ -280,7 +317,7 @@ function DetailPanel() {
             </div>
             <div className="flex flex-wrap gap-2">
               {filteredRecords.map((r) => {
-                const typeLabel = r.itemType === 'unreachable' ? '未接通' : r.itemType === 'reminder' ? '未完成提醒' : '缺货'
+                const typeLabel = r.itemType === 'unreachable' ? '未接通' : r.itemType === 'reminder' ? '未完成提醒' : r.itemType === 'outOfStock' ? '缺货' : '活动转来'
                 const statusBg = r.status === '待处理'
                   ? 'bg-yellow-50 border-yellow-200'
                   : r.status === '处理中'
