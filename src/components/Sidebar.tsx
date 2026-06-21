@@ -1,12 +1,13 @@
-import { Pill, BarChart3, Store, AlertTriangle } from 'lucide-react'
+import { Pill, Zap, BarChart3, Store, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SidebarProps {
-  activeSection: 'category' | 'store' | 'churn'
+  activeSection: 'summary' | 'category' | 'store' | 'churn'
   onSectionChange: (section: string) => void
 }
 
 const navItems = [
+  { key: 'summary', label: '运营摘要', icon: Zap },
   { key: 'category', label: '品类概览', icon: BarChart3 },
   { key: 'store', label: '门店排行', icon: Store },
   { key: 'churn', label: '流失预警', icon: AlertTriangle },

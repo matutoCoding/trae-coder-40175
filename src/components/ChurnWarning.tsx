@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckSquare, Square, Send, X, Users } from 'lucide-react'
 import { useDashboardStore } from '@/hooks/useDashboardStore'
 import type { RiskLabel } from '@/lib/mockData'
 
@@ -17,12 +17,101 @@ function getActionStyle(action: string) {
   return 'bg-surface-100 text-surface-600 border border-surface-200'
 }
 
+function CareDraftModal() {
+  const { careDraft, churnData, closeCareDraft, clearChurnSelection } = useDashboardStore()
+  if (!careDraft.isOpen) return null
+
+  const selected = churnData.filter((m) => careDraft.selectedMembers.includes(m.memberId))
+  const categories = [...new Set(selected.map((m) => m.category))]
+  const labelCounts: Record<string, number> = {}
+  selected.forEach((m) => m.riskLabels.forEach((l) => { labelCounts[l] = (labelCounts[l] || 0) + 1 }))
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={closeCareDraft}>
+      <div className="w-full max-w-lg rounded-xl bg-white p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-lg font-semibold">
+            <Send className="h-5 w-5 text-brand-600" />
+            关怀活动草稿
+          </h3>
+          <button onClick={closeCareDraft} className="text-surface-400 hover:text-surface-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-4">
+          <div className="rounded-lg bg-brand-50 p-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-brand-700">
+              <Users className="h-4 w-4" />
+              已选 {selected.length} 位会员
+            </div>
+            <div className="mt-1 text-xs text-brand-600">
+              覆盖品类：{categories.join('、')}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-1 text-sm font-medium text-surface-700">风险标签分布</div>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(labelCounts).map(([label, count]) => (
+                <span key={label} className={`rounded px-2 py-0.5 text-xs ${riskLabelStyles[label as RiskLabel] || 'bg-surface-100 text-surface-600'}`}>
+                  {label} ({count}人)
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-1 text-sm font-medium text-surface-700">建议话术</div>
+            <div className="rounded-lg bg-surface-50 p-3 text-sm leading-relaxed text-surface-700">
+              {careDraft.scriptSummary}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-1 text-sm font-medium text-surface-700">涉及会员</div>
+            <div className="max-h-32 overflow-y-auto rounded-lg bg-surface-50 p-2">
+              {selected.map((m) => (
+                <div key={m.memberId} className="flex items-center gap-2 py-0.5 text-xs">
+                  <span className="font-medium text-surface-700">{m.memberName}</span>
+                  <span className="text-surface-400">{m.phone}</span>
+                  <span className="text-surface-400">· {m.category}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex justify-end gap-3">
+          <button
+            onClick={() => { clearChurnSelection(); closeCareDraft() }}
+            className="rounded-lg bg-surface-100 px-4 py-2 text-sm font-medium text-surface-600 hover:bg-surface-200"
+          >
+            取消
+          </button>
+          <button
+            onClick={() => { clearChurnSelection(); closeCareDraft() }}
+            className="flex items-center gap-1.5 rounded-lg bg-brand-700 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800"
+          >
+            <Send className="h-4 w-4" />
+            发起关怀活动
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ChurnWarning() {
-  const { churnData, churnLabelFilter, setChurnLabelFilter } = useDashboardStore()
+  const { churnData, churnLabelFilter, setChurnLabelFilter, selectedChurnMembers, toggleChurnMember, toggleAllChurnMembers, openCareDraft } = useDashboardStore()
 
   const filtered = churnLabelFilter === '全部'
     ? churnData
     : churnData.filter((m) => m.riskLabels.includes(churnLabelFilter))
+
+  const filteredIds = filtered.map((m) => m.memberId)
+  const allSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedChurnMembers.has(id))
+  const hasSelection = selectedChurnMembers.size > 0
 
   return (
     <section>
@@ -36,70 +125,88 @@ export default function ChurnWarning() {
         </span>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         {riskLabelOptions.map((label) => (
           <button
             key={label}
             onClick={() => setChurnLabelFilter(label)}
-            className={
-              churnLabelFilter === label
-                ? 'rounded-full bg-brand-700 px-3 py-1 text-sm text-white'
-                : 'rounded-full bg-surface-100 px-3 py-1 text-sm text-surface-600 hover:bg-surface-200'
+            className={churnLabelFilter === label
+              ? 'rounded-full bg-brand-700 px-3 py-1 text-sm text-white'
+              : 'rounded-full bg-surface-100 px-3 py-1 text-sm text-surface-600 hover:bg-surface-200'
             }
           >
             {label}
           </button>
         ))}
+
+        {hasSelection && (
+          <button
+            onClick={openCareDraft}
+            className="ml-auto flex items-center gap-1.5 rounded-full bg-brand-700 px-3 py-1 text-sm text-white hover:bg-brand-800"
+          >
+            <Send className="h-3.5 w-3.5" />
+            发起关怀活动 ({selectedChurnMembers.size})
+          </button>
+        )}
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {filtered.map((member) => (
-          <div
-            key={member.memberId}
-            className="rounded-xl bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
-          >
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-medium text-brand-700">
-                {member.memberName.charAt(0)}
-              </div>
+      <div className="mt-3 flex items-center gap-2 text-sm text-surface-500">
+        <button
+          onClick={() => toggleAllChurnMembers(filteredIds)}
+          className="flex items-center gap-1.5 hover:text-surface-700"
+        >
+          {allSelected ? <CheckSquare className="h-4 w-4 text-brand-600" /> : <Square className="h-4 w-4" />}
+          全选当前筛选
+        </button>
+      </div>
 
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-surface-800">{member.memberName}</span>
-                  <span className="rounded bg-surface-100 px-1.5 py-0.5 text-xs text-surface-600">
-                    {member.category}
+      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {filtered.map((member) => {
+          const isSelected = selectedChurnMembers.has(member.memberId)
+          return (
+            <div
+              key={member.memberId}
+              className={`rounded-xl bg-white p-4 shadow-sm transition-all ${isSelected ? 'ring-2 ring-brand-500 ring-offset-1' : 'hover:shadow-md'}`}
+            >
+              <div className="flex items-start gap-3">
+                <button
+                  onClick={() => toggleChurnMember(member.memberId)}
+                  className="mt-1 shrink-0"
+                >
+                  {isSelected ? <CheckSquare className="h-4 w-4 text-brand-600" /> : <Square className="h-4 w-4 text-surface-300" />}
+                </button>
+
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-medium text-brand-700">
+                  {member.memberName.charAt(0)}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-surface-800">{member.memberName}</span>
+                    <span className="rounded bg-surface-100 px-1.5 py-0.5 text-xs text-surface-600">{member.category}</span>
+                  </div>
+                  <div className="mt-1 font-mono-num text-sm text-surface-400">{member.phone}</div>
+                  <div className="mt-1 text-xs text-surface-400">上次购买: {member.lastPurchaseDate}</div>
+                </div>
+
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  <div className="flex flex-wrap justify-end gap-1">
+                    {member.riskLabels.map((label) => (
+                      <span key={label} className={`rounded px-1.5 py-0.5 text-xs ${riskLabelStyles[label]}`}>{label}</span>
+                    ))}
+                  </div>
+                  <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs ${getActionStyle(member.suggestedAction)}`}>
+                    {member.suggestedAction}
+                    <ArrowRight className="h-3 w-3" />
                   </span>
                 </div>
-                <div className="mt-1 font-mono-num text-sm text-surface-400">
-                  {member.phone}
-                </div>
-                <div className="mt-1 text-xs text-surface-400">
-                  上次购买: {member.lastPurchaseDate}
-                </div>
-              </div>
-
-              <div className="flex shrink-0 flex-col items-end gap-2">
-                <div className="flex flex-wrap justify-end gap-1">
-                  {member.riskLabels.map((label) => (
-                    <span
-                      key={label}
-                      className={`rounded px-1.5 py-0.5 text-xs ${riskLabelStyles[label]}`}
-                    >
-                      {label}
-                    </span>
-                  ))}
-                </div>
-                <span
-                  className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs ${getActionStyle(member.suggestedAction)}`}
-                >
-                  {member.suggestedAction}
-                  <ArrowRight className="h-3 w-3" />
-                </span>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
+
+      <CareDraftModal />
     </section>
   )
 }

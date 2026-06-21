@@ -1,5 +1,7 @@
 export type RiskLabel = '连续三次未回购' | '处方可能过期' | '只在线下买过无法触达'
 
+export type FollowUpAction = '再次电话' | '转门店店长' | '补货跟进'
+
 export interface CategoryRepurchase {
   category: string
   expectedCount: number
@@ -28,73 +30,187 @@ export interface ChurnMember {
   memberName: string
   phone: string
   category: string
+  region: string
   riskLabels: RiskLabel[]
   lastPurchaseDate: string
   suggestedAction: string
 }
 
-export const categoryRepurchaseData: CategoryRepurchase[] = [
-  {
-    category: '高血压',
-    expectedCount: 2860,
-    actualCount: 1923,
-    nonRepurchaseRate: 0.328,
-    trend: [
-      { date: '06-01', expected: 400, actual: 268 },
-      { date: '06-02', expected: 410, actual: 279 },
-      { date: '06-03', expected: 395, actual: 260 },
-      { date: '06-04', expected: 420, actual: 285 },
-      { date: '06-05', expected: 408, actual: 272 },
-      { date: '06-06', expected: 415, actual: 288 },
+export interface ActionRecord {
+  id: string
+  storeName: string
+  itemType: 'unreachable' | 'reminder' | 'outOfStock'
+  itemName: string
+  action: FollowUpAction
+  timestamp: string
+}
+
+const regions = ['华东', '华南', '华北', '华中', '西南'] as const
+
+const categoryByRegion: Record<string, CategoryRepurchase[]> = {
+  '全部': [
+    { category: '高血压', expectedCount: 2860, actualCount: 1923, nonRepurchaseRate: 0.328, trend: [
+      { date: '06-01', expected: 400, actual: 268 }, { date: '06-02', expected: 410, actual: 279 },
+      { date: '06-03', expected: 395, actual: 260 }, { date: '06-04', expected: 420, actual: 285 },
+      { date: '06-05', expected: 408, actual: 272 }, { date: '06-06', expected: 415, actual: 288 },
       { date: '06-07', expected: 412, actual: 271 },
-    ],
-  },
-  {
-    category: '糖尿病',
-    expectedCount: 2140,
-    actualCount: 1356,
-    nonRepurchaseRate: 0.366,
-    trend: [
-      { date: '06-01', expected: 305, actual: 189 },
-      { date: '06-02', expected: 310, actual: 198 },
-      { date: '06-03', expected: 298, actual: 185 },
-      { date: '06-04', expected: 312, actual: 201 },
-      { date: '06-05', expected: 306, actual: 192 },
-      { date: '06-06', expected: 308, actual: 196 },
+    ]},
+    { category: '糖尿病', expectedCount: 2140, actualCount: 1356, nonRepurchaseRate: 0.366, trend: [
+      { date: '06-01', expected: 305, actual: 189 }, { date: '06-02', expected: 310, actual: 198 },
+      { date: '06-03', expected: 298, actual: 185 }, { date: '06-04', expected: 312, actual: 201 },
+      { date: '06-05', expected: 306, actual: 192 }, { date: '06-06', expected: 308, actual: 196 },
       { date: '06-07', expected: 301, actual: 195 },
-    ],
-  },
-  {
-    category: '甲状腺',
-    expectedCount: 980,
-    actualCount: 712,
-    nonRepurchaseRate: 0.273,
-    trend: [
-      { date: '06-01', expected: 138, actual: 99 },
-      { date: '06-02', expected: 142, actual: 104 },
-      { date: '06-03', expected: 135, actual: 97 },
-      { date: '06-04', expected: 145, actual: 106 },
-      { date: '06-05', expected: 140, actual: 102 },
-      { date: '06-06', expected: 143, actual: 103 },
+    ]},
+    { category: '甲状腺', expectedCount: 980, actualCount: 712, nonRepurchaseRate: 0.273, trend: [
+      { date: '06-01', expected: 138, actual: 99 }, { date: '06-02', expected: 142, actual: 104 },
+      { date: '06-03', expected: 135, actual: 97 }, { date: '06-04', expected: 145, actual: 106 },
+      { date: '06-05', expected: 140, actual: 102 }, { date: '06-06', expected: 143, actual: 103 },
       { date: '06-07', expected: 137, actual: 101 },
-    ],
-  },
-  {
-    category: '抗凝',
-    expectedCount: 1560,
-    actualCount: 987,
-    nonRepurchaseRate: 0.367,
-    trend: [
-      { date: '06-01', expected: 220, actual: 138 },
-      { date: '06-02', expected: 228, actual: 145 },
-      { date: '06-03', expected: 215, actual: 132 },
-      { date: '06-04', expected: 232, actual: 148 },
-      { date: '06-05', expected: 222, actual: 139 },
-      { date: '06-06', expected: 225, actual: 143 },
+    ]},
+    { category: '抗凝', expectedCount: 1560, actualCount: 987, nonRepurchaseRate: 0.367, trend: [
+      { date: '06-01', expected: 220, actual: 138 }, { date: '06-02', expected: 228, actual: 145 },
+      { date: '06-03', expected: 215, actual: 132 }, { date: '06-04', expected: 232, actual: 148 },
+      { date: '06-05', expected: 222, actual: 139 }, { date: '06-06', expected: 225, actual: 143 },
       { date: '06-07', expected: 218, actual: 142 },
-    ],
-  },
-]
+    ]},
+  ],
+  '华东': [
+    { category: '高血压', expectedCount: 620, actualCount: 446, nonRepurchaseRate: 0.281, trend: [
+      { date: '06-01', expected: 88, actual: 63 }, { date: '06-02', expected: 90, actual: 66 },
+      { date: '06-03', expected: 86, actual: 61 }, { date: '06-04', expected: 92, actual: 67 },
+      { date: '06-05', expected: 89, actual: 64 }, { date: '06-06', expected: 91, actual: 65 },
+      { date: '06-07', expected: 84, actual: 60 },
+    ]},
+    { category: '糖尿病', expectedCount: 480, actualCount: 312, nonRepurchaseRate: 0.350, trend: [
+      { date: '06-01', expected: 68, actual: 43 }, { date: '06-02', expected: 70, actual: 46 },
+      { date: '06-03', expected: 66, actual: 42 }, { date: '06-04', expected: 72, actual: 47 },
+      { date: '06-05', expected: 69, actual: 44 }, { date: '06-06', expected: 71, actual: 45 },
+      { date: '06-07', expected: 64, actual: 45 },
+    ]},
+    { category: '甲状腺', expectedCount: 230, actualCount: 178, nonRepurchaseRate: 0.226, trend: [
+      { date: '06-01', expected: 32, actual: 25 }, { date: '06-02', expected: 34, actual: 26 },
+      { date: '06-03', expected: 31, actual: 24 }, { date: '06-04', expected: 35, actual: 27 },
+      { date: '06-05', expected: 33, actual: 25 }, { date: '06-06', expected: 34, actual: 26 },
+      { date: '06-07', expected: 31, actual: 25 },
+    ]},
+    { category: '抗凝', expectedCount: 340, actualCount: 238, nonRepurchaseRate: 0.300, trend: [
+      { date: '06-01', expected: 48, actual: 33 }, { date: '06-02', expected: 50, actual: 35 },
+      { date: '06-03', expected: 46, actual: 32 }, { date: '06-04', expected: 52, actual: 37 },
+      { date: '06-05', expected: 49, actual: 34 }, { date: '06-06', expected: 51, actual: 36 },
+      { date: '06-07', expected: 44, actual: 31 },
+    ]},
+  ],
+  '华南': [
+    { category: '高血压', expectedCount: 540, actualCount: 324, nonRepurchaseRate: 0.400, trend: [
+      { date: '06-01', expected: 76, actual: 45 }, { date: '06-02', expected: 78, actual: 47 },
+      { date: '06-03', expected: 74, actual: 44 }, { date: '06-04', expected: 80, actual: 48 },
+      { date: '06-05', expected: 77, actual: 46 }, { date: '06-06', expected: 79, actual: 47 },
+      { date: '06-07', expected: 76, actual: 47 },
+    ]},
+    { category: '糖尿病', expectedCount: 410, actualCount: 238, nonRepurchaseRate: 0.420, trend: [
+      { date: '06-01', expected: 58, actual: 33 }, { date: '06-02', expected: 60, actual: 35 },
+      { date: '06-03', expected: 56, actual: 32 }, { date: '06-04', expected: 62, actual: 37 },
+      { date: '06-05', expected: 59, actual: 34 }, { date: '06-06', expected: 61, actual: 35 },
+      { date: '06-07', expected: 54, actual: 32 },
+    ]},
+    { category: '甲状腺', expectedCount: 180, actualCount: 108, nonRepurchaseRate: 0.400, trend: [
+      { date: '06-01', expected: 25, actual: 15 }, { date: '06-02', expected: 27, actual: 16 },
+      { date: '06-03', expected: 24, actual: 14 }, { date: '06-04', expected: 28, actual: 17 },
+      { date: '06-05', expected: 26, actual: 15 }, { date: '06-06', expected: 27, actual: 16 },
+      { date: '06-07', expected: 23, actual: 15 },
+    ]},
+    { category: '抗凝', expectedCount: 310, actualCount: 180, nonRepurchaseRate: 0.419, trend: [
+      { date: '06-01', expected: 44, actual: 25 }, { date: '06-02', expected: 46, actual: 27 },
+      { date: '06-03', expected: 42, actual: 24 }, { date: '06-04', expected: 48, actual: 29 },
+      { date: '06-05', expected: 45, actual: 26 }, { date: '06-06', expected: 47, actual: 27 },
+      { date: '06-07', expected: 38, actual: 22 },
+    ]},
+  ],
+  '华北': [
+    { category: '高血压', expectedCount: 580, actualCount: 398, nonRepurchaseRate: 0.314, trend: [
+      { date: '06-01', expected: 82, actual: 56 }, { date: '06-02', expected: 84, actual: 58 },
+      { date: '06-03', expected: 80, actual: 55 }, { date: '06-04', expected: 86, actual: 60 },
+      { date: '06-05', expected: 83, actual: 57 }, { date: '06-06', expected: 85, actual: 59 },
+      { date: '06-07', expected: 80, actual: 53 },
+    ]},
+    { category: '糖尿病', expectedCount: 440, actualCount: 290, nonRepurchaseRate: 0.341, trend: [
+      { date: '06-01', expected: 62, actual: 40 }, { date: '06-02', expected: 64, actual: 42 },
+      { date: '06-03', expected: 60, actual: 39 }, { date: '06-04', expected: 66, actual: 44 },
+      { date: '06-05', expected: 63, actual: 41 }, { date: '06-06', expected: 65, actual: 43 },
+      { date: '06-07', expected: 60, actual: 41 },
+    ]},
+    { category: '甲状腺', expectedCount: 200, actualCount: 152, nonRepurchaseRate: 0.240, trend: [
+      { date: '06-01', expected: 28, actual: 21 }, { date: '06-02', expected: 30, actual: 23 },
+      { date: '06-03', expected: 27, actual: 20 }, { date: '06-04', expected: 31, actual: 24 },
+      { date: '06-05', expected: 29, actual: 22 }, { date: '06-06', expected: 30, actual: 23 },
+      { date: '06-07', expected: 25, actual: 19 },
+    ]},
+    { category: '抗凝', expectedCount: 350, actualCount: 231, nonRepurchaseRate: 0.340, trend: [
+      { date: '06-01', expected: 50, actual: 33 }, { date: '06-02', expected: 52, actual: 34 },
+      { date: '06-03', expected: 48, actual: 31 }, { date: '06-04', expected: 54, actual: 36 },
+      { date: '06-05', expected: 51, actual: 33 }, { date: '06-06', expected: 53, actual: 35 },
+      { date: '06-07', expected: 42, actual: 29 },
+    ]},
+  ],
+  '华中': [
+    { category: '高血压', expectedCount: 560, actualCount: 358, nonRepurchaseRate: 0.361, trend: [
+      { date: '06-01', expected: 79, actual: 50 }, { date: '06-02', expected: 81, actual: 52 },
+      { date: '06-03', expected: 77, actual: 49 }, { date: '06-04', expected: 83, actual: 54 },
+      { date: '06-05', expected: 80, actual: 51 }, { date: '06-06', expected: 82, actual: 53 },
+      { date: '06-07', expected: 78, actual: 49 },
+    ]},
+    { category: '糖尿病', expectedCount: 420, actualCount: 252, nonRepurchaseRate: 0.400, trend: [
+      { date: '06-01', expected: 59, actual: 35 }, { date: '06-02', expected: 61, actual: 37 },
+      { date: '06-03', expected: 57, actual: 34 }, { date: '06-04', expected: 63, actual: 38 },
+      { date: '06-05', expected: 60, actual: 36 }, { date: '06-06', expected: 62, actual: 37 },
+      { date: '06-07', expected: 58, actual: 35 },
+    ]},
+    { category: '甲状腺', expectedCount: 190, actualCount: 133, nonRepurchaseRate: 0.300, trend: [
+      { date: '06-01', expected: 27, actual: 18 }, { date: '06-02', expected: 29, actual: 20 },
+      { date: '06-03', expected: 26, actual: 18 }, { date: '06-04', expected: 30, actual: 21 },
+      { date: '06-05', expected: 28, actual: 19 }, { date: '06-06', expected: 29, actual: 20 },
+      { date: '06-07', expected: 21, actual: 17 },
+    ]},
+    { category: '抗凝', expectedCount: 300, actualCount: 186, nonRepurchaseRate: 0.380, trend: [
+      { date: '06-01', expected: 42, actual: 25 }, { date: '06-02', expected: 44, actual: 27 },
+      { date: '06-03', expected: 40, actual: 24 }, { date: '06-04', expected: 46, actual: 29 },
+      { date: '06-05', expected: 43, actual: 26 }, { date: '06-06', expected: 45, actual: 28 },
+      { date: '06-07', expected: 40, actual: 27 },
+    ]},
+  ],
+  '西南': [
+    { category: '高血压', expectedCount: 560, actualCount: 397, nonRepurchaseRate: 0.291, trend: [
+      { date: '06-01', expected: 79, actual: 56 }, { date: '06-02', expected: 81, actual: 57 },
+      { date: '06-03', expected: 77, actual: 55 }, { date: '06-04', expected: 83, actual: 59 },
+      { date: '06-05', expected: 80, actual: 57 }, { date: '06-06', expected: 82, actual: 58 },
+      { date: '06-07', expected: 78, actual: 55 },
+    ]},
+    { category: '糖尿病', expectedCount: 390, actualCount: 264, nonRepurchaseRate: 0.323, trend: [
+      { date: '06-01', expected: 55, actual: 37 }, { date: '06-02', expected: 57, actual: 39 },
+      { date: '06-03', expected: 53, actual: 36 }, { date: '06-04', expected: 59, actual: 40 },
+      { date: '06-05', expected: 56, actual: 38 }, { date: '06-06', expected: 58, actual: 39 },
+      { date: '06-07', expected: 52, actual: 35 },
+    ]},
+    { category: '甲状腺', expectedCount: 180, actualCount: 141, nonRepurchaseRate: 0.217, trend: [
+      { date: '06-01', expected: 25, actual: 20 }, { date: '06-02', expected: 27, actual: 21 },
+      { date: '06-03', expected: 24, actual: 19 }, { date: '06-04', expected: 28, actual: 22 },
+      { date: '06-05', expected: 26, actual: 20 }, { date: '06-06', expected: 27, actual: 21 },
+      { date: '06-07', expected: 23, actual: 18 },
+    ]},
+    { category: '抗凝', expectedCount: 260, actualCount: 152, nonRepurchaseRate: 0.415, trend: [
+      { date: '06-01', expected: 37, actual: 21 }, { date: '06-02', expected: 39, actual: 23 },
+      { date: '06-03', expected: 35, actual: 20 }, { date: '06-04', expected: 41, actual: 25 },
+      { date: '06-05', expected: 38, actual: 22 }, { date: '06-06', expected: 40, actual: 23 },
+      { date: '06-07', expected: 30, actual: 18 },
+    ]},
+  ],
+}
+
+const timeRangeMultiplier: Record<string, number> = {
+  '近7天': 0.25,
+  '近30天': 1,
+  '近90天': 3,
+}
 
 export const storeRankingData: StoreRanking[] = [
   {
@@ -330,160 +446,53 @@ export const storeRankingData: StoreRanking[] = [
 ]
 
 export const churnMembersData: ChurnMember[] = [
-  {
-    memberId: 'M10001',
-    memberName: '王建国',
-    phone: '138****5621',
-    category: '高血压',
-    riskLabels: ['连续三次未回购'],
-    lastPurchaseDate: '2026-03-15',
-    suggestedAction: '调整电话跟进节奏至每日一次',
-  },
-  {
-    memberId: 'M10002',
-    memberName: '李秀英',
-    phone: '139****3482',
-    category: '糖尿病',
-    riskLabels: ['连续三次未回购', '处方可能过期'],
-    lastPurchaseDate: '2026-02-28',
-    suggestedAction: '安排门店补货并电话跟进',
-  },
-  {
-    memberId: 'M10003',
-    memberName: '张志明',
-    phone: '136****7719',
-    category: '抗凝',
-    riskLabels: ['只在线下买过无法触达'],
-    lastPurchaseDate: '2026-04-10',
-    suggestedAction: '发起会员关怀活动并引导线上购药',
-  },
-  {
-    memberId: 'M10004',
-    memberName: '陈美华',
-    phone: '158****2234',
-    category: '甲状腺',
-    riskLabels: ['处方可能过期'],
-    lastPurchaseDate: '2026-03-22',
-    suggestedAction: '安排门店补货并电话跟进',
-  },
-  {
-    memberId: 'M10005',
-    memberName: '刘德荣',
-    phone: '155****8867',
-    category: '高血压',
-    riskLabels: ['连续三次未回购', '只在线下买过无法触达'],
-    lastPurchaseDate: '2026-02-14',
-    suggestedAction: '调整电话跟进节奏至每日一次',
-  },
-  {
-    memberId: 'M10006',
-    memberName: '赵玉兰',
-    phone: '137****4532',
-    category: '糖尿病',
-    riskLabels: ['连续三次未回购'],
-    lastPurchaseDate: '2026-03-05',
-    suggestedAction: '发起会员关怀活动并引导线上购药',
-  },
-  {
-    memberId: 'M10007',
-    memberName: '孙国平',
-    phone: '182****1198',
-    category: '高血压',
-    riskLabels: ['处方可能过期', '只在线下买过无法触达'],
-    lastPurchaseDate: '2026-04-18',
-    suggestedAction: '安排门店补货并电话跟进',
-  },
-  {
-    memberId: 'M10008',
-    memberName: '周美芳',
-    phone: '150****6653',
-    category: '抗凝',
-    riskLabels: ['连续三次未回购'],
-    lastPurchaseDate: '2026-01-20',
-    suggestedAction: '调整电话跟进节奏至每日一次',
-  },
-  {
-    memberId: 'M10009',
-    memberName: '吴明辉',
-    phone: '133****9941',
-    category: '甲状腺',
-    riskLabels: ['连续三次未回购', '处方可能过期'],
-    lastPurchaseDate: '2026-02-08',
-    suggestedAction: '安排门店补货并电话跟进',
-  },
-  {
-    memberId: 'M10010',
-    memberName: '黄淑芬',
-    phone: '186****3372',
-    category: '糖尿病',
-    riskLabels: ['只在线下买过无法触达'],
-    lastPurchaseDate: '2026-04-25',
-    suggestedAction: '发起会员关怀活动并引导线上购药',
-  },
-  {
-    memberId: 'M10011',
-    memberName: '郑雅琴',
-    phone: '151****8890',
-    category: '高血压',
-    riskLabels: ['连续三次未回购'],
-    lastPurchaseDate: '2026-03-10',
-    suggestedAction: '调整电话跟进节奏至每日一次',
-  },
-  {
-    memberId: 'M10012',
-    memberName: '林永福',
-    phone: '159****4426',
-    category: '抗凝',
-    riskLabels: ['处方可能过期', '只在线下买过无法触达'],
-    lastPurchaseDate: '2026-04-02',
-    suggestedAction: '安排门店补货并电话跟进',
-  },
-  {
-    memberId: 'M10013',
-    memberName: '何春梅',
-    phone: '135****5578',
-    category: '糖尿病',
-    riskLabels: ['连续三次未回购', '处方可能过期'],
-    lastPurchaseDate: '2026-01-30',
-    suggestedAction: '发起会员关怀活动并引导线上购药',
-  },
-  {
-    memberId: 'M10014',
-    memberName: '曹建华',
-    phone: '156****2214',
-    category: '甲状腺',
-    riskLabels: ['连续三次未回购'],
-    lastPurchaseDate: '2026-03-28',
-    suggestedAction: '调整电话跟进节奏至每日一次',
-  },
-  {
-    memberId: 'M10015',
-    memberName: '梁伟明',
-    phone: '138****9903',
-    category: '高血压',
-    riskLabels: ['处方可能过期', '只在线下买过无法触达'],
-    lastPurchaseDate: '2026-04-15',
-    suggestedAction: '安排门店补货并电话跟进',
-  },
+  { memberId: 'M10001', memberName: '王建国', phone: '138****5621', category: '高血压', region: '华北', riskLabels: ['连续三次未回购'], lastPurchaseDate: '2026-03-15', suggestedAction: '调整电话跟进节奏至每日一次' },
+  { memberId: 'M10002', memberName: '李秀英', phone: '139****3482', category: '糖尿病', region: '华东', riskLabels: ['连续三次未回购', '处方可能过期'], lastPurchaseDate: '2026-02-28', suggestedAction: '安排门店补货并电话跟进' },
+  { memberId: 'M10003', memberName: '张志明', phone: '136****7719', category: '抗凝', region: '华南', riskLabels: ['只在线下买过无法触达'], lastPurchaseDate: '2026-04-10', suggestedAction: '发起会员关怀活动并引导线上购药' },
+  { memberId: 'M10004', memberName: '陈美华', phone: '158****2234', category: '甲状腺', region: '华东', riskLabels: ['处方可能过期'], lastPurchaseDate: '2026-03-22', suggestedAction: '安排门店补货并电话跟进' },
+  { memberId: 'M10005', memberName: '刘德荣', phone: '155****8867', category: '高血压', region: '华中', riskLabels: ['连续三次未回购', '只在线下买过无法触达'], lastPurchaseDate: '2026-02-14', suggestedAction: '调整电话跟进节奏至每日一次' },
+  { memberId: 'M10006', memberName: '赵玉兰', phone: '137****4532', category: '糖尿病', region: '华北', riskLabels: ['连续三次未回购'], lastPurchaseDate: '2026-03-05', suggestedAction: '发起会员关怀活动并引导线上购药' },
+  { memberId: 'M10007', memberName: '孙国平', phone: '182****1198', category: '高血压', region: '西南', riskLabels: ['处方可能过期', '只在线下买过无法触达'], lastPurchaseDate: '2026-04-18', suggestedAction: '安排门店补货并电话跟进' },
+  { memberId: 'M10008', memberName: '周美芳', phone: '150****6653', category: '抗凝', region: '华南', riskLabels: ['连续三次未回购'], lastPurchaseDate: '2026-01-20', suggestedAction: '调整电话跟进节奏至每日一次' },
+  { memberId: 'M10009', memberName: '吴明辉', phone: '133****9941', category: '甲状腺', region: '华中', riskLabels: ['连续三次未回购', '处方可能过期'], lastPurchaseDate: '2026-02-08', suggestedAction: '安排门店补货并电话跟进' },
+  { memberId: 'M10010', memberName: '黄淑芬', phone: '186****3372', category: '糖尿病', region: '华南', riskLabels: ['只在线下买过无法触达'], lastPurchaseDate: '2026-04-25', suggestedAction: '发起会员关怀活动并引导线上购药' },
+  { memberId: 'M10011', memberName: '郑雅琴', phone: '151****8890', category: '高血压', region: '华东', riskLabels: ['连续三次未回购'], lastPurchaseDate: '2026-03-10', suggestedAction: '调整电话跟进节奏至每日一次' },
+  { memberId: 'M10012', memberName: '林永福', phone: '159****4426', category: '抗凝', region: '华北', riskLabels: ['处方可能过期', '只在线下买过无法触达'], lastPurchaseDate: '2026-04-02', suggestedAction: '安排门店补货并电话跟进' },
+  { memberId: 'M10013', memberName: '何春梅', phone: '135****5578', category: '糖尿病', region: '西南', riskLabels: ['连续三次未回购', '处方可能过期'], lastPurchaseDate: '2026-01-30', suggestedAction: '发起会员关怀活动并引导线上购药' },
+  { memberId: 'M10014', memberName: '曹建华', phone: '156****2214', category: '甲状腺', region: '华南', riskLabels: ['连续三次未回购'], lastPurchaseDate: '2026-03-28', suggestedAction: '调整电话跟进节奏至每日一次' },
+  { memberId: 'M10015', memberName: '梁伟明', phone: '138****9903', category: '高血压', region: '华中', riskLabels: ['处方可能过期', '只在线下买过无法触达'], lastPurchaseDate: '2026-04-15', suggestedAction: '安排门店补货并电话跟进' },
 ]
 
+function scaleCategoryData(data: CategoryRepurchase[], multiplier: number): CategoryRepurchase[] {
+  return data.map((item) => ({
+    ...item,
+    expectedCount: Math.round(item.expectedCount * multiplier),
+    actualCount: Math.round(item.actualCount * multiplier),
+    nonRepurchaseRate: item.nonRepurchaseRate,
+    trend: item.trend.map((t) => ({
+      ...t,
+      expected: Math.round(t.expected * multiplier),
+      actual: Math.round(t.actual * multiplier),
+    })),
+  }))
+}
+
 export function getFilteredData(timeRange: string, region: string) {
+  const multiplier = timeRangeMultiplier[timeRange] ?? 1
+  const regionKey = regions.includes(region as any) ? region : '全部'
+  const baseCategoryData = categoryByRegion[regionKey] ?? categoryByRegion['全部']
+  const scaledCategoryData = scaleCategoryData(baseCategoryData, multiplier)
+
   const filteredStores = region === '全部'
     ? storeRankingData
     : storeRankingData.filter((s) => s.region === region)
 
   const filteredChurn = region === '全部'
     ? churnMembersData
-    : churnMembersData.filter((m) => {
-        const memberCategories = filteredStores.flatMap((s) => [
-          ...s.details.reminders.map((r) => r.memberName),
-          ...s.details.unreachableMembers.map((u) => u.memberName),
-        ])
-        return memberCategories.includes(m.memberName)
-      })
+    : churnMembersData.filter((m) => m.region === region)
 
   return {
-    categoryRepurchaseData,
+    categoryRepurchaseData: scaledCategoryData,
     storeRankingData: filteredStores,
     churnMembersData: filteredChurn,
   }
